@@ -64,8 +64,12 @@ class MarkdownGenerator(Generator):
         self.noimages = noimages
         if not self.no_types_dir:
             os.makedirs(os.path.join(directory, 'types'), exist_ok=True)
+            os.makedirs(os.path.join(directory, 'enums'), exist_ok=True)
+            os.makedirs(os.path.join(directory, 'classes'), exist_ok=True)
+            os.makedirs(os.path.join(directory, 'slots'), exist_ok=True)
+            os.makedirs(os.path.join(directory, '_Home'), exist_ok=True)
 
-        with open(self.exist_warning(directory, index_file), 'w', encoding='UTF-8') as ixfile:
+        with open(self.exist_warning(os.path.join(directory, '_Home'), index_file), 'w', encoding='UTF-8') as ixfile:
             with redirect_stdout(ixfile):
                 self.frontmatter(f"{self.schema.name}")
                 self.para(
@@ -119,7 +123,7 @@ class MarkdownGenerator(Generator):
         if self.gen_classes and cls.name not in self.gen_classes:
             return False
 
-        with open(self.exist_warning(self.dir_path(cls)), 'w', encoding='UTF-8') as clsfile:
+        with open(self.exist_warning(self.dir_classpath(cls)), 'w', encoding='UTF-8') as clsfile:
             with redirect_stdout(clsfile):
                 class_curi = self.namespaces.uri_or_curie_for(str(self.namespaces._base), camelcase(cls.name))
                 class_uri = self.namespaces.uri_for(class_curi)
@@ -146,7 +150,7 @@ class MarkdownGenerator(Generator):
                     for p in cls.id_prefixes:
                         self.bullet(f'{p}')
 
-                if cls.is_a is not None:
+                if cls.is_a:
                     self.header(2, 'Parents')
                     self.bullet(f' is_a: {self.class_link(cls.is_a, use_desc=True)}')
                 if cls.mixins:
@@ -225,7 +229,7 @@ class MarkdownGenerator(Generator):
                 self.element_properties(typ)
 
     def visit_slot(self, aliased_slot_name: str, slot: SlotDefinition) -> None:
-        with open(self.exist_warning(self.dir_path(slot)), 'w', encoding='UTF-8') as slotfile:
+        with open(self.exist_warning(self.dir_slotpath(slot)), 'w', encoding='UTF-8') as slotfile:
             with redirect_stdout(slotfile):
                 import logging
                 slot_curie = self.namespaces.uri_or_curie_for(str(self.namespaces._base), underscore(slot.name))
@@ -237,12 +241,12 @@ class MarkdownGenerator(Generator):
                 print(f'{self.class_link(slot.domain)} &#8594;{self.predicate_cardinality(slot)} '
                       f'{self.class_type_link(slot.range)}')
 
-                self.header(2, 'Parents')
                 if slot.is_a:
+                    self.header(2, 'Parents')
                     self.bullet(f' is_a: {self.slot_link(slot.is_a)}')
 
-                self.header(2, 'Children')
                 if slot.name in sorted(self.synopsis.isarefs):
+                    self.header(2, 'Children')
                     for child in sorted(self.synopsis.isarefs[slot.name].slotrefs):
                         self.bullet(f' {self.slot_link(child)}')
 
@@ -256,7 +260,7 @@ class MarkdownGenerator(Generator):
                 self.element_properties(slot)
 
     def visit_enum(self, enum: EnumDefinition) -> None:
-        with open(self.exist_warning(self.dir_path(enum)), 'w', encoding='UTF-8') as enumfile:
+        with open(self.exist_warning(self.dir_enumpath(enum)), 'w', encoding='UTF-8') as enumfile:
             with redirect_stdout(enumfile):
                 enum_curie = self.namespaces.uri_or_curie_for(str(self.namespaces._base), underscore(enum.name))
                 enum_uri = self.namespaces.uri_for(enum_curie)
@@ -380,14 +384,15 @@ class MarkdownGenerator(Generator):
             #       - related mappings
             #       - deprecated element has exact replacement
             #       - deprecated element has possible replacement
-            if type(obj) == EnumDefinition:
-                enum_list('Permissible Values', obj)
 
         if attributes.getvalue():
             self.header(2, 'Other properties')
             print("|  |  |  |")
             print("| --- | --- | --- |")
             print(attributes.getvalue())
+
+        if type(obj) == EnumDefinition:
+            enum_list('Permissible Values', obj)
 
     def class_hier(self, cls: ClassDefinition, level=0) -> None:
         self.bullet(self.class_link(cls, use_desc=True), level)
@@ -415,6 +420,30 @@ class MarkdownGenerator(Generator):
         subdir = '/types' if isinstance(obj, TypeDefinition) and not self.no_types_dir else ''
         return f'{self.directory}{subdir}/{filename}.md'
 
+    def dir_enumpath(self, obj: Union[ClassDefinition, SlotDefinition, TypeDefinition, EnumDefinition]) -> str:
+        filename = self.formatted_element_name(obj) if isinstance(obj, ClassDefinition) \
+            else underscore(obj.name) if isinstance(obj, SlotDefinition) \
+            else underscore(obj.name) if isinstance(obj, EnumDefinition) \
+            else camelcase(obj.name)
+        subdir = '/enums' if isinstance(obj, EnumDefinition) and not self.no_types_dir else ''
+        return f'{self.directory}{subdir}/{filename}.md'
+    
+    def dir_classpath(self, obj: Union[ClassDefinition, SlotDefinition, TypeDefinition, EnumDefinition]) -> str:
+        filename = self.formatted_element_name(obj) if isinstance(obj, ClassDefinition) \
+            else underscore(obj.name) if isinstance(obj, SlotDefinition) \
+            else underscore(obj.name) if isinstance(obj, EnumDefinition) \
+            else camelcase(obj.name)
+        subdir = '/classes' if isinstance(obj, ClassDefinition) and not self.no_types_dir else ''
+        return f'{self.directory}{subdir}/{filename}.md'
+
+    def dir_slotpath(self, obj: Union[ClassDefinition, SlotDefinition, TypeDefinition, EnumDefinition]) -> str:
+        filename = self.formatted_element_name(obj) if isinstance(obj, ClassDefinition) \
+            else underscore(obj.name) if isinstance(obj, SlotDefinition) \
+            else underscore(obj.name) if isinstance(obj, EnumDefinition) \
+            else camelcase(obj.name)
+        subdir = '/slots' if isinstance(obj, SlotDefinition) and not self.no_types_dir else ''
+        return f'{self.directory}{subdir}/{filename}.md'
+    
     def mappings(self, obj: [SlotDefinition, ClassDefinition]) -> None:
         # TODO: get rid of this?
         # self.header(2, 'Mappings')
@@ -551,16 +580,19 @@ class MarkdownGenerator(Generator):
             return self.bbin(obj)
         if isinstance(obj, SlotDefinition):
             link_name = ((be(obj.domain) + '➞') if obj.alias else '') + self.aliased_slot_name(obj)
-            link_ref = underscore(obj.name)
+            link_ref = f"../slots/{obj.name}" if not self.no_types_dir else f"{obj.name}"
         elif isinstance(obj, TypeDefinition):
             link_name = camelcase(obj.name)
-            link_ref = f"types/{link_name}" if not self.no_types_dir else f"{link_name}"
+            link_ref = f"../types/{link_name}" if not self.no_types_dir else f"{link_name}"
         elif isinstance(obj, ClassDefinition):
             link_name = camelcase(obj.name)
-            link_ref = camelcase(link_name)
+            link_ref = f"../classes/{link_name}" if not self.no_types_dir else f"{link_name}"
         elif isinstance(obj, SubsetDefinition):
             link_name = camelcase(obj.name)
             link_ref = camelcase(link_name)
+        elif isinstance(obj, EnumDefinition):
+            link_name = camelcase(obj.name)
+            link_ref = f"../enums/{link_name}" if not self.no_types_dir else f"{link_name}"
         else:
             link_name = obj.name
             link_ref = link_name
