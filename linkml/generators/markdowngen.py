@@ -259,6 +259,16 @@ class MarkdownGenerator(Generator):
                         self.bullet(f' reifies: {self.slot_link(slot.subproperty_of) if slot.subproperty_of in self.schema.slots else slot.subproperty_of}')
                 self.element_properties(slot)
 
+        with open(self.exist_warning(self.dir_path(slot)), 'w', encoding='UTF-8') as slotfile:
+            with redirect_stdout(slotfile):
+                print('# Redirect')
+                print('<html>')
+                print('<head>')
+                print('<meta http-equiv="content-type" content="text/html; charset=utf-8" />')
+                print(f'<meta http-equiv="refresh" content="0;url=../slots/{slot.name}/" />')
+                print('</html>')
+
+
     def visit_enum(self, enum: EnumDefinition) -> None:
         with open(self.exist_warning(self.dir_enumpath(enum)), 'w', encoding='UTF-8') as enumfile:
             with redirect_stdout(enumfile):
