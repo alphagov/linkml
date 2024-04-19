@@ -43,7 +43,6 @@ class JsonSchemaGenerator(Generator):
     generatorname = os.path.basename(__file__)
     generatorversion = "0.0.2"
     valid_formats = ["json"]
-    visit_all_class_slots = True
 
     def __init__(self, schema: Union[str, TextIO, SchemaDefinition], top_class: Optional[str] = None, **kwargs) -> None:
         """
@@ -61,9 +60,8 @@ class JsonSchemaGenerator(Generator):
         self.topCls = top_class  ## JSON object is one instance of this
         self.entryProperties = {}
         self.include_range_class_descendants = kwargs["include_range_class_descendants"] if "include_range_class_descendants" in kwargs else False
-        # JSON-Schema does not have inheritance,
-        # so we duplicate slots from inherited parents and mixins
-        self.visit_all_slots = True
+        self.nonstandard_extends = kwargs["nonstandard_extends"] if "nonstandard_extends" in kwargs else False
+        self.visit_all_class_slots = not self.nonstandard_extends
         # Maps e.g. Person --> Person__identifier_optional
         # for use when Person is a range of an inlined-as-dict slot
         self.optional_identifier_class_map: Dict[str, Tuple[str, str]] = {}
@@ -110,6 +108,10 @@ class JsonSchemaGenerator(Generator):
                               required=[],
                               additionalProperties=additional_properties,
                               description=be(cls.description))
+        if self.nonstandard_extends and cls.is_a is not None:
+            extendsobj = JsonObj()
+            extendsobj['$ref'] = f'#/$defs/{cls.is_a}'
+            self.clsobj['extends'] = extendsobj
         return True
 
     def end_class(self, cls: ClassDefinition) -> None:
@@ -256,6 +258,9 @@ Set additionalProperties=False if closed otherwise true if not closed at the glo
 """)
 @click.option("--include-range-class-descendants/--no-range-class-descendants", default=False, show_default=False, help="""
 When handling range constraints, include all descendants of the range class instead of just the range class
+""")
+@click.option("--nonstandard-extends", is_flag=True, help="""
+Generate schema using an inheritance hierarchy, using the non-standard extends property
 """)
 def cli(yamlfile, **kwargs):
     """ Generate JSON Schema representation of a LinkML model """
