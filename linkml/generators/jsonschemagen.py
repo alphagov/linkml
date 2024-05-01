@@ -26,6 +26,7 @@ json_schema_types: Dict[str, Tuple[str, Optional[str]]] = {
     "xsddate": ("string", "date"),
     "xsddatetime": ("string", "date-time"),
     "xsdtime": ("string", "time"),
+    "uri": ("string", "uri"),
 }
 
 WITH_OPTIONAL_IDENTIFIER_SUFFIX = '__identifier_optional'
